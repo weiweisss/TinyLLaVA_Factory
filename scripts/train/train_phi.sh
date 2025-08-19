@@ -1,7 +1,9 @@
-DATA_PATH=/home/ai/data/llava/dataset/text_files/blip_laion_cc_sbu_558k.json #pretrain annotation file path
-FINETUNE_DATA_PATH=/home/ai/data/llava/dataset/text_files/llava_v1_5_mix665k.json #finetune annotation file path
-IMAGE_PATH=/home/ai/data/llava/dataset/llava/llava_pretrain/images #pretrain image dir
-FINETUNE_IMAGE_PATH=/home/ai/data/llava/dataset #finetune image dir
+ROOT_DIR=/media/Dataset/llava_dataset
+
+DATA_PATH=$ROOT_DIR/text_files/blip_laion_cc_sbu_558k.json #pretrain annotation file path
+FINETUNE_DATA_PATH=$ROOT_DIR/text_files/llava_v1_5_mix665k.json #finetune annotation file path
+IMAGE_PATH=$ROOT_DIR/llava/llava_pretrain/images #pretrain image dir
+FINETUNE_IMAGE_PATH=$ROOT_DIR #finetune image dir
 
 LLM_VERSION=microsoft/phi-2 # llm path in huggingface
 VT_VERSION=google/siglip-so400m-patch14-384 #vision tower path in huggingface

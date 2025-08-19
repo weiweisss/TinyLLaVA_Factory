@@ -49,11 +49,21 @@ class BaseTrainingRecipe:
         
     def _vision_tower_tune_type_setting(self, model):
         tune_type = self.training_arguments.tune_type_vision_tower.lower()
-        assert tune_type in ('frozen', 'full', 'partially-tune', 'lora', 'qlora'), f'tune_type {tune_type} not supported in this training recipe!'
+        assert tune_type in ('frozen', 'full', 'partially-tune', 'lora', 'qlora', 'calm'), f'tune_type {tune_type} not supported in this training recipe!'
         if tune_type == 'full':
             model.vision_tower.requires_grad_(True)
         elif tune_type == 'frozen':
-            model.vision_tower.requires_grad_(False)         
+            model.vision_tower.requires_grad_(False)
+        elif tune_type == 'calm':
+            # Freeze all parameters first, including anchor_tower, augmenting_tower, and calm_modules
+            model.vision_tower.requires_grad_(False)
+            # Then, explicitly unfreeze only the calm_modules parameters
+            # Check if the vision tower is a CALM vision tower
+            if hasattr(model.vision_tower, '_vision_tower') and hasattr(model.vision_tower._vision_tower, 'calm_modules'):
+                # Explicitly set requires_grad=True for CALM module parameters
+                print('Successfully loaded CALM vision tower!')
+                for param in model.vision_tower._vision_tower.calm_modules.parameters():
+                    param.requires_grad = True
         elif tune_type == 'partially-tune':
             #--------------------------------------------
             #--------------------------------------------

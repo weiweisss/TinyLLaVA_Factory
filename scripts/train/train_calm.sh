@@ -1,0 +1,22 @@
+export CUDA_LAUNCH_BLOCKING=1
+
+ROOT_DIR=/media/Dataset/llava_dataset
+
+DATA_PATH=$ROOT_DIR/text_files/blip_laion_cc_sbu_558k.json #pretrain annotation file path
+FINETUNE_DATA_PATH=$ROOT_DIR/text_files/llava_v1_5_mix665k.json #finetune annotation file path
+IMAGE_PATH=$ROOT_DIR/llava/llava_pretrain/images #pretrain image dir
+FINETUNE_IMAGE_PATH=$ROOT_DIR #finetune image dir
+
+LLM_VERSION=TinyLlama/TinyLlama-1.1B-Chat-v1.0
+VT_VERSION=calm:openai/clip-vit-large-patch14-336
+VT_VERSION2=calm:facebook/dinov2-large
+CN_VERSION=mlp2x_gelu
+CONV_VERSION=llama
+VERSION=calm
+TRAIN_RECIPE=common
+MODEL_MAX_LENGTH=2048
+TUNE_TYPE_VISION_TOWER=calm
+
+# Run training
+bash scripts/train/pretrain.sh "$DATA_PATH" "$IMAGE_PATH" "$LLM_VERSION" "$VT_VERSION" "$VT_VERSION2" "$CN_VERSION" "$VERSION" "$TRAIN_RECIPE" "$MODEL_MAX_LENGTH" "$TUNE_TYPE_VISION_TOWER"
+bash scripts/train/finetune.sh "$FINETUNE_DATA_PATH" "$FINETUNE_IMAGE_PATH" "$LLM_VERSION" "$VT_VERSION" "$VT_VERSION2" "$CN_VERSION" "$CONV_VERSION" "$VERSION" "$TRAIN_RECIPE" "$MODEL_MAX_LENGTH" "$TUNE_TYPE_VISION_TOWER"

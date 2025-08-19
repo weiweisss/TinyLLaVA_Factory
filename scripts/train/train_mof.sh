@@ -1,7 +1,9 @@
-DATA_PATH=/home/ai/data/llava/dataset/text_files/blip_laion_cc_sbu_558k.json
-FINETUNE_DATA_PATH=/home/ai/data/llava/dataset/text_files/llava_v1_5_mix665k.json
-IMAGE_PATH=/home/ai/data/llava/dataset/llava/llava_pretrain/images
-FINETUNE_IMAGE_PATH=/home/ai/data/llava/dataset
+ROOT_DIR=/media/Dataset/llava_dataset
+
+DATA_PATH=$ROOT_DIR/text_files/blip_laion_cc_sbu_558k.json #pretrain annotation file path
+FINETUNE_DATA_PATH=$ROOT_DIR/text_files/llava_v1_5_mix665k.json #finetune annotation file path
+IMAGE_PATH=$ROOT_DIR/llava/llava_pretrain/images #pretrain image dir
+FINETUNE_IMAGE_PATH=$ROOT_DIR #finetune image dir
 
 LLM_VERSION=TinyLlama/TinyLlama-1.1B-Chat-v1.0
 VT_VERSION=mof:openai/clip-vit-large-patch14

@@ -1,10 +1,11 @@
 #!/bin/bash
 
-if [ $# -ne 9 ]; then
-    echo "Usage: $0 <DATA_PATH> <IMAGE_PATH> <LLM_VERSION> <VT_VERSION> <VT_VERSION2> <CN_VERSION> <VERSION> <TRAIN_RECIPE> <MODEL_MAX_LENGTH>"
+if [ $# -ne 10 ]; then
+    echo "Usage: $0 <DATA_PATH> <IMAGE_PATH> <LLM_VERSION> <VT_VERSION> <VT_VERSION2> <CN_VERSION> <VERSION> <TRAIN_RECIPE> <MODEL_MAX_LENGTH> <TUNE_TYPE_VISION_TOWER>"
     exit 1
 fi
-
+export NCCL_P2P_DISABLE=1
+export NCCL_IB_DISABLE=1
 # Assign the arguments to variables
 DATA_PATH="$1"
 IMAGE_PATH="$2"
@@ -15,11 +16,12 @@ CN_VERSION="$6"
 VERSION="$7"
 TRAIN_RECIPE="$8"
 MODEL_MAX_LENGTH="$9"
+TUNE_TYPE_VISION_TOWER="${10}"
 
 VT_VARIANT="${VT_VERSION#*/}"
 LLM_VARIANT="${LLM_VERSION#*/}"
 
-deepspeed --include localhost:4,5,6,7 --master_port 29501 tinyllava/train/train.py \
+deepspeed --include localhost:0,1 --master_port 29501 tinyllava/train/train.py \
     --deepspeed ./scripts/zero3.json \
     --data_path  $DATA_PATH\
     --image_folder $IMAGE_PATH \
@@ -35,17 +37,17 @@ deepspeed --include localhost:4,5,6,7 --master_port 29501 tinyllava/train/train.
     --fp16 True \
     --training_recipe $TRAIN_RECIPE \
     --tune_type_llm frozen \
-    --tune_type_vision_tower frozen \
+    --tune_type_vision_tower "$TUNE_TYPE_VISION_TOWER" \
     --tune_vision_tower_from_layer 0 \
     --tune_type_connector full \
-    --output_dir /mnt/data/sata/yinghu/checkpoints/llava_factory/tiny-llava-${LLM_VARIANT}-${VT_VARIANT}-${VERSION}-pretrain \
+    --output_dir /media/Dataset/llava_checkpoints/llava_factory/tiny-llava-${LLM_VARIANT}-${VT_VARIANT}-${VERSION}-pretrain \
     --num_train_epochs 1 \
     --per_device_train_batch_size 32 \
     --per_device_eval_batch_size 4 \
-    --gradient_accumulation_steps 2 \
+    --gradient_accumulation_steps 4 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
-    --save_steps 24000 \
+    --save_steps 1000 \
     --save_total_limit 1 \
     --learning_rate 1e-3 \
     --weight_decay 0. \
@@ -57,6 +59,6 @@ deepspeed --include localhost:4,5,6,7 --master_port 29501 tinyllava/train/train.
     --gradient_checkpointing True \
     --dataloader_num_workers 8 \
     --lazy_preprocess True \
-    --report_to tensorboard \
+    --report_to wandb \
     --tokenizer_use_fast False \
     --run_name tiny-llava-${LLM_VARIANT}-${VT_VARIANT}-${VERSION}-pretrain
