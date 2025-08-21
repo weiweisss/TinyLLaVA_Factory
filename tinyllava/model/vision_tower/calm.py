@@ -249,34 +249,42 @@ class CALMVisionTower(VisionTower):
 
         pretrained_vision_tower_path = kwargs.pop('pretrained_vision_tower_path', None)
 
-        if pretrained_vision_tower_path is None:
-            # Load both models
-            self._vision_tower.anchor_tower = AutoModel.from_pretrained(anchor_model_name)
-            self._vision_tower.augmenting_tower = AutoModel.from_pretrained(augmenting_model_name)
+        # Load both models
+        self._vision_tower.anchor_tower = AutoModel.from_pretrained(anchor_model_name)
+        self._vision_tower.augmenting_tower = AutoModel.from_pretrained(augmenting_model_name)
 
-            # Update model configs and calculate fusion layers
-            self._vision_tower._update_model_configs_and_layers()
+        # Update model configs and calculate fusion layers
+        self._vision_tower._update_model_configs_and_layers()
 
-            # Freeze the parameters of the base models
-            if self._vision_tower.anchor_tower is not None:
-                for param in self._vision_tower.anchor_tower.parameters():
-                    param.requires_grad = False
-            if self._vision_tower.augmenting_tower is not None:
-                for param in self._vision_tower.augmenting_tower.parameters():
-                    param.requires_grad = False
+        # Freeze the parameters of the base models
+        if self._vision_tower.anchor_tower is not None:
+            for param in self._vision_tower.anchor_tower.parameters():
+                param.requires_grad = False
+        if self._vision_tower.augmenting_tower is not None:
+            for param in self._vision_tower.augmenting_tower.parameters():
+                param.requires_grad = False
 
-            print("Loading CALM vision tower with anchor model from", anchor_model_name, "and augmenting model from",
-                  augmenting_model_name)
-        else:
+        print("Loading CALM vision tower with anchor model from", anchor_model_name, "and augmenting model from",
+              augmenting_model_name)
+        #(f"vision tower architecture: {self._vision_tower}")
+        if pretrained_vision_tower_path is not None:
             # Load from checkpoint
             vision_tower_weights = torch.load(os.path.join(pretrained_vision_tower_path, 'pytorch_model.bin'),
                                               map_location='cpu')
-
+            #print(f"loaded vision tower weights from pretrain {vision_tower_weights}")
             def get_w(weights, keyword):
                 return {k.split(keyword + '.')[1]: v for k, v in weights.items() if keyword in k}
 
-            self._vision_tower.load_state_dict(vision_tower_weights)
-            print("Loading vision tower from ", pretrained_vision_tower_path)
+            # 1. Extract calm_modules weights
+            calm_weights = {k.replace('calm_modules.', ''): v for k, v in vision_tower_weights.items() if
+                            k.startswith('calm_modules.')}
+            # 2. Load calm_modules weights
+            if calm_weights:
+                # Load to the calm_modules of the internal CALM instance
+                self._vision_tower.calm_modules.load_state_dict(calm_weights)
+                print(f"Loaded CALM module weights for {len(calm_weights)} keys from {pretrained_vision_tower_path}.")
+            else:
+                print(f"Warning: No 'calm_modules' weights found in the checkpoint at {pretrained_vision_tower_path}.")
 
     def forward(self, x, **kwargs):
         device = x["anchor"].data.device
