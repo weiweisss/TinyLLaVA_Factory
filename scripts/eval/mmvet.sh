@@ -1,8 +1,9 @@
 #!/bin/bash
 
-MODEL_PATH="/mnt/data/sata/yinghu/checkpoints/llava_factory/tiny-llava-phi-2-clip-vit-large-patch14-336-baseline-finetune/"
-MODEL_NAME="tiny-llava-phi-2-clip-vit-large-patch14-336-baseline-finetune2"
-EVAL_DIR="/home/ai/data/llava/dataset/eval"
+MODEL_PATH="$1"
+MODEL_NAME="$2"
+EVAL_DIR="$3"
+CONV_MODE="$4"
 
 python -m tinyllava.eval.model_vqa \
     --model-path $MODEL_PATH \
@@ -10,7 +11,7 @@ python -m tinyllava.eval.model_vqa \
     --image-folder $EVAL_DIR/mm-vet/images \
     --answers-file $EVAL_DIR/mm-vet/answers/$MODEL_NAME.jsonl \
     --temperature 0 \
-    --conv-mode phi
+    --conv-mode $CONV_MODE
 
 mkdir -p $EVAL_DIR/mm-vet/results
 

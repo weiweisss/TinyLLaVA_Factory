@@ -5,12 +5,13 @@ IFS=',' read -ra GPULIST <<< "$gpu_list"
 
 CHUNKS=${#GPULIST[@]}
 
-SPLIT="llava_gqa_testdev_balanced"
-GQADIR="/home/ai/data/llava/dataset/eval/gqa"
+EVAL_DIR="/media/Dataset/llava_dataset/eval"
 
-MODEL_PATH="/mnt/data/sata/yinghu/checkpoints/llava_factory/tiny-llava-phi-2-siglip-so400m-patch14-384-base-finetune/"
-MODEL_NAME="tiny-llava-phi-2-siglip-so400m-patch14-384-base-finetune"
-EVAL_DIR="/home/ai/data/llava/dataset/eval"
+SPLIT="llava_gqa_testdev_balanced"
+GQADIR="${EVAL_DIR}/gqa"
+
+MODEL_PATH="/media/Dataset/llava_checkpoints/llava_factory/tiny-llava-TinyLlama-1.1B-Chat-v1.0-clip-vit-large-patch14-336-calm-finetune/"
+MODEL_NAME="tiny-llava-TinyLlama-1.1B-Chat-v1.0-clip-vit-large-patch14-336-calm-finetune"
 
 for IDX in $(seq 0 $((CHUNKS-1))); do
     CUDA_VISIBLE_DEVICES=${GPULIST[$IDX]} python -m tinyllava.eval.model_vqa_loader \

@@ -1,8 +1,9 @@
 #!/bin/bash
 
-MODEL_PATH="/home/jiajunlong/LLaVA/ying/checkpoints/tiny-llava-TinyLlama-1.1B-Chat-v1.0-clip-vit-large-patch14-336-tinyllama-llava-finetune"
-MODEL_NAME="tiny-llava-TinyLlama-1.1B-Chat-v1.0-clip-vit-large-patch14-336-tinyllama-llava-finetune"
-EVAL_DIR="/home/jiajunlong/llava_data/eval"
+MODEL_PATH="$1"
+MODEL_NAME="$2"
+EVAL_DIR="$3"
+CONV_MODE="$4"
 
 python -m tinyllava.eval.model_vqa_loader \
     --model-path $MODEL_PATH \
@@ -10,7 +11,7 @@ python -m tinyllava.eval.model_vqa_loader \
     --image-folder $EVAL_DIR/MME/MME_Benchmark_release_version \
     --answers-file $EVAL_DIR/MME/answers/$MODEL_NAME.jsonl \
     --temperature 0 \
-   --conv-mode llama
+   --conv-mode $CONV_MODE
 
 cd $EVAL_DIR/MME
 

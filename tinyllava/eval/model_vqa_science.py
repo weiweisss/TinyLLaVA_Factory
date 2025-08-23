@@ -16,7 +16,7 @@ import math
 def split_list(lst, n):
     """Split a list into n (roughly) equal-sized chunks"""
     chunk_size = math.ceil(len(lst) / n)  # integer division
-    return [lst[i:i+chunk_size] for i in range(0, len(lst), chunk_size)]
+    return [lst[i:i + chunk_size] for i in range(0, len(lst), chunk_size)]
 
 
 def get_chunk(lst, n, k):
@@ -29,10 +29,20 @@ def eval_model(args):
     disable_torch_init()
     model_path = os.path.expanduser(args.model_path)
     model, tokenizer, image_processor, context_len = load_pretrained_model(model_path)
-    
+
     text_processor = TextPreprocess(tokenizer, args.conv_mode)
     data_args = model.config
-    image_processor = ImagePreprocess(image_processor, data_args)
+
+    # Handle both single processor and multiple processors
+    if isinstance(image_processor, dict):
+        image_processor = {
+            key: ImagePreprocess(processor, data_args)
+            for key, processor in image_processor.items()
+        }
+        use_multi_processors = True
+    else:
+        image_processor = ImagePreprocess(image_processor, data_args)
+        use_multi_processors = False
 
     questions = json.load(open(os.path.expanduser(args.question_file), "r"))
     questions = get_chunk(questions, args.num_chunks, args.chunk_idx)
@@ -48,8 +58,16 @@ def eval_model(args):
             image_file = line["image"]
             image = Image.open(os.path.join(args.image_folder, image_file))
             image_sizes = [image.size]
-            image = image_processor(image)
-            images = image.unsqueeze(0).half().cuda()
+
+            # Handle both single processor and multiple processors
+            if use_multi_processors:
+                processed_images = {}
+                for key, processor in image_processor.items():
+                    processed_images[key] = processor(image).unsqueeze(0).half().cuda()
+                images = processed_images
+            else:
+                image_tensor = image_processor(image)
+                images = image_tensor.unsqueeze(0).half().cuda()
             question = '<image>' + '\n' + question
         else:
             images = None
@@ -88,6 +106,7 @@ def eval_model(args):
                                    "metadata": {}}) + "\n")
         ans_file.flush()
     ans_file.close()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

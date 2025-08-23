@@ -9,6 +9,7 @@ import argparse
 import requests
 from PIL import Image
 from io import BytesIO
+import pdb, sys
 
 import torch
 from transformers import TextStreamer
@@ -29,6 +30,7 @@ def load_image(image_file):
 
 def main(args):
     # Model
+ #   pdb.Pdb(stdin=sys.__stdin__,stdout=sys.__stdout__).set_trace()
     disable_torch_init()
     if args.model_path is not None:
         model, tokenizer, image_processor, context_len = load_pretrained_model(model_name_or_path=args.model_path, load_8bit=args.load_8bit, load_4bit=args.load_4bit, device=args.device)
@@ -44,7 +46,16 @@ def main(args):
     
     text_processor = TextPreprocess(tokenizer, args.conv_mode)
     data_args = model.config
-    image_processor = ImagePreprocess(image_processor, data_args)
+    # Handle both single processor and multiple processors
+    if isinstance(image_processor, dict):
+        image_processor = {
+            key: ImagePreprocess(processor, data_args)
+            for key, processor in image_processor.items()
+        }
+        use_multi_processors = True
+    else:
+        image_processor = ImagePreprocess(image_processor, data_args)
+        use_multi_processors = False
     model.to(args.device)
     if getattr(text_processor.template, 'role', None) is None:
         roles = ['USER', 'ASSISTANT']
@@ -53,8 +64,14 @@ def main(args):
     msg = Message()
     image = load_image(args.image_file)
     # Similar operation in model_worker.py
-    image_tensor = image_processor(image)
-    image_tensor = image_tensor.unsqueeze(0).to(model.device, dtype=torch.float16)
+    if use_multi_processors:
+        processed_images = {}
+        for key, processor in image_processor.items():
+            processed_images[key] = processor(image).unsqueeze(0).to(model.device, dtype=torch.float16)
+        image_tensor = processed_images
+    else:
+        image_tensor = image_processor(image)
+        image_tensor = image_tensor.unsqueeze(0).to(model.device, dtype=torch.float16)
 
     while True:
         try:

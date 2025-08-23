@@ -16,11 +16,13 @@ from torch.utils.data import Dataset, DataLoader
 from PIL import Image
 import math
 
+import pdb
+
 
 def split_list(lst, n):
     """Split a list into n (roughly) equal-sized chunks"""
     chunk_size = math.ceil(len(lst) / n)  # integer division
-    return [lst[i:i+chunk_size] for i in range(0, len(lst), chunk_size)]
+    return [lst[i:i + chunk_size] for i in range(0, len(lst), chunk_size)]
 
 
 def get_chunk(lst, n, k):
@@ -30,11 +32,12 @@ def get_chunk(lst, n, k):
 
 # Custom dataset class
 class CustomDataset(Dataset):
-    def __init__(self, questions, image_folder, text_processor, image_processor):
+    def __init__(self, questions, image_folder, text_processor, image_processor, use_multi_processors=False):
         self.questions = questions
         self.image_folder = image_folder
         self.text_processor = text_processor
         self.image_processor = image_processor
+        self.use_multi_processors = use_multi_processors
 
     def __getitem__(self, index):
         line = self.questions[index]
@@ -42,12 +45,20 @@ class CustomDataset(Dataset):
         qs = line["text"]
 
         image = Image.open(os.path.join(args.image_folder, image_file)).convert('RGB')
-        image_tensor = self.image_processor(image)
-        
+
+        # Handle both single processor and multiple processors
+        if self.use_multi_processors:
+            processed_images = {}
+            for key, processor in self.image_processor.items():
+                processed_images[key] = processor(image)
+            image_tensor = processed_images
+        else:
+            image_tensor = self.image_processor(image)
+
         qs = DEFAULT_IMAGE_TOKEN + '\n' + qs
         msg = Message()
         msg.add_message(qs)
-        #print(prompt)
+        # print(prompt)
         result = self.text_processor(msg.messages, mode='eval')
         input_ids = result['input_ids']
 
@@ -60,15 +71,29 @@ class CustomDataset(Dataset):
 def collate_fn(batch):
     input_ids, image_tensors, image_sizes = zip(*batch)
     input_ids = torch.stack(input_ids, dim=0)
-    image_tensors = torch.stack(image_tensors, dim=0)
+
+    # Handle both single processor and multiple processors
+    if isinstance(image_tensors[0], dict):
+        # For multiple processors, we need to stack each processor's tensors separately
+        processed_images = {}
+        for key in image_tensors[0].keys():
+            tensors = [img_dict[key] for img_dict in image_tensors]
+            processed_images[key] = torch.stack(tensors, dim=0)
+        image_tensors = processed_images
+    else:
+        # For single processor, stack normally
+        image_tensors = torch.stack(image_tensors, dim=0)
+
     return input_ids, image_tensors, image_sizes
 
 
 # DataLoader
-def create_data_loader(questions, image_folder, text_processor, image_processor, batch_size=1, num_workers=4):
+def create_data_loader(questions, image_folder, text_processor, image_processor, use_multi_processors=False,
+                       batch_size=1, num_workers=4):
     assert batch_size == 1, "batch_size must be 1"
-    dataset = CustomDataset(questions, image_folder, text_processor, image_processor)
-    data_loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, shuffle=False, collate_fn=collate_fn)
+    dataset = CustomDataset(questions, image_folder, text_processor, image_processor, use_multi_processors)
+    data_loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, shuffle=False,
+                             collate_fn=collate_fn)
     return data_loader
 
 
@@ -77,11 +102,21 @@ def eval_model(args):
     disable_torch_init()
     model_path = os.path.expanduser(args.model_path)
     model, tokenizer, image_processor, context_len = load_pretrained_model(model_path)
-    
+
     text_processor = TextPreprocess(tokenizer, args.conv_mode)
-    #model.config.image_aspect_ratio = 'pad'
+    # model.config.image_aspect_ratio = 'pad'
     data_args = model.config
-    image_processor = ImagePreprocess(image_processor, data_args)
+
+    # Handle both single processor and multiple processors
+    if isinstance(image_processor, dict):
+        image_processor = {
+            key: ImagePreprocess(processor, data_args)
+            for key, processor in image_processor.items()
+        }
+        use_multi_processors = True
+    else:
+        image_processor = ImagePreprocess(image_processor, data_args)
+        use_multi_processors = False
 
     questions = [json.loads(q) for q in open(os.path.expanduser(args.question_file), "r")]
     questions = get_chunk(questions, args.num_chunks, args.chunk_idx)
@@ -89,8 +124,8 @@ def eval_model(args):
     os.makedirs(os.path.dirname(answers_file), exist_ok=True)
     ans_file = open(answers_file, "w")
 
-
-    data_loader = create_data_loader(questions, args.image_folder, text_processor, image_processor)
+    data_loader = create_data_loader(questions, args.image_folder, text_processor, image_processor,
+                                     use_multi_processors)
     # print("Tokenizer's eos token: ", tokenizer.eos_token)
     model.to(device='cuda')
     for (input_ids, image_tensor, image_sizes), line in tqdm(zip(data_loader, questions), total=len(questions)):
@@ -99,10 +134,15 @@ def eval_model(args):
         # keywords = [tokenizer.eos_token]
         # stopping_criteria = KeywordsStoppingCriteria(keywords, tokenizer, input_ids)
         input_ids = input_ids.to(device='cuda', non_blocking=True)
+        if use_multi_processors:
+            for key in image_tensor.keys():
+                image_tensor[key] = image_tensor[key].to(dtype=torch.float16, device='cuda', non_blocking=True)
+        else:
+            image_tensor = image_tensor.to(dtype=torch.float16, device='cuda', non_blocking=True)
         with torch.inference_mode():
             output_ids = model.generate(
                 input_ids,
-                images=image_tensor.to(dtype=torch.float16, device='cuda', non_blocking=True),
+                images=image_tensor,
                 pad_token_id=tokenizer.pad_token_id,
                 do_sample=True if args.temperature > 0 else False,
                 temperature=args.temperature,
@@ -126,6 +166,7 @@ def eval_model(args):
                                    "metadata": {}}) + "\n")
         # ans_file.flush()
     ans_file.close()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
